@@ -1,0 +1,17 @@
+./course-info.yaml
+./course-remote-info.yaml
+*.iml
+.gradle
+/local.properties
+/.idea/
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+/Photo Editor/*/*
+!/Photo Editor/task/src
+!/Photo Editor/task/build.gradle
+course-remote-info.yaml
+course-info.yaml

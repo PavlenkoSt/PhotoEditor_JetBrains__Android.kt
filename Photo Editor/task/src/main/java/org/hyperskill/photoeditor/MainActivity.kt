@@ -6,26 +6,32 @@ import android.graphics.Bitmap
 import android.graphics.Color
 import android.os.Bundle
 import android.provider.MediaStore
-import android.view.View
 import android.widget.Button
 import android.widget.ImageView
-import androidx.activity.result.ActivityResult
-import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult
 import androidx.appcompat.app.AppCompatActivity
+import com.google.android.material.slider.Slider
+import com.google.android.material.slider.Slider.OnChangeListener
 
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var currentImage: ImageView
     private lateinit var btn: Button
+    private lateinit var brightnessSlider: Slider
+
+    private lateinit var originalBitmap: Bitmap
+    private lateinit var filteredBitmap: Bitmap
 
     private val activityResultLauncher = registerForActivityResult(
         StartActivityForResult()
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             val photoUri = result.data?.data ?: return@registerForActivityResult
-            currentImage.setImageURI(photoUri)
+            val bitmap = MediaStore.Images.Media.getBitmap(contentResolver, photoUri)
+
+            originalBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, true)
+            currentImage.setImageBitmap(originalBitmap)
         }
     }
 
@@ -40,6 +46,10 @@ class MainActivity : AppCompatActivity() {
             )
         }
 
+        brightnessSlider.addOnChangeListener(OnChangeListener { slider, value, fromUser ->
+            applyBrightnessFilter(value.toInt())
+        })
+
         //do not change this line
         currentImage.setImageBitmap(createBitmap())
     }
@@ -47,6 +57,53 @@ class MainActivity : AppCompatActivity() {
     private fun bindViews() {
         currentImage = findViewById(R.id.ivPhoto)
         btn = findViewById(R.id.btnGallery)
+        brightnessSlider = findViewById(R.id.slBrightness)
+    }
+
+    private fun applyBrightnessFilter(brightness: Int) {
+//      ------- optimized version ----------
+//        if (!::originalBitmap.isInitialized) return
+//
+//        filteredBitmap = originalBitmap.copy(Bitmap.Config.ARGB_8888, true)
+//
+//        val canvas = Canvas(filteredBitmap)
+//        val paint = Paint()
+//
+//        val colorMatrix = ColorMatrix()
+//        colorMatrix.set(
+//            floatArrayOf(
+//                1f, 0f, 0f, 0f, brightness.toFloat(),
+//                0f, 1f, 0f, 0f, brightness.toFloat(),
+//                0f, 0f, 1f, 0f, brightness.toFloat(),
+//                0f, 0f, 0f, 1f, 0f
+//            )
+//        )
+//
+//        paint.colorFilter = ColorMatrixColorFilter(colorMatrix)
+//        canvas.drawBitmap(originalBitmap, 0f, 0f, paint)
+//
+//        currentImage.setImageBitmap(filteredBitmap)
+
+
+        if (!::originalBitmap.isInitialized) return
+
+        filteredBitmap = originalBitmap.copy(Bitmap.Config.ARGB_8888, true)
+
+        for (x in 0 until filteredBitmap.width) {
+            for (y in 0 until filteredBitmap.height) {
+                val pixel = originalBitmap.getPixel(x, y)
+
+                val alpha = Color.alpha(pixel)
+                val red = (Color.red(pixel) + brightness).coerceIn(0, 255)
+                val green = (Color.green(pixel) + brightness).coerceIn(0, 255)
+                val blue = (Color.blue(pixel) + brightness).coerceIn(0, 255)
+
+                val newPixel = Color.argb(alpha, red, green, blue)
+                filteredBitmap.setPixel(x, y, newPixel)
+            }
+        }
+
+        currentImage.setImageBitmap(filteredBitmap)
     }
 
     // do not change this function
@@ -77,6 +134,7 @@ class MainActivity : AppCompatActivity() {
         // output bitmap
         val bitmapOut = Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565)
         bitmapOut.setPixels(pixels, 0, width, 0, 0, width, height)
+        originalBitmap = bitmapOut
         return bitmapOut
     }
 }

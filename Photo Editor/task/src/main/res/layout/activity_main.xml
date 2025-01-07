@@ -38,11 +38,12 @@
         app:layout_constraintTop_toBottomOf="@+id/ivPhoto" />
 
     <LinearLayout
-        android:id="@+id/linearLayout"
+        android:id="@+id/linearLayout1"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center"
         android:orientation="horizontal"
+        android:layout_marginTop="24dp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/btnGallery">
@@ -56,6 +57,33 @@
 
         <com.google.android.material.slider.Slider
             android:id="@+id/slBrightness"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:stepSize="10"
+            android:value="0"
+            android:valueFrom="-250"
+            android:valueTo="250" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/linearLayout2"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:orientation="horizontal"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/linearLayout1">
+
+        <TextView
+            android:id="@+id/tvContrast"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:text="Contrast" />
+
+        <com.google.android.material.slider.Slider
+            android:id="@+id/slContrast"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:stepSize="10"

@@ -26,6 +26,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var currentImage: ImageView
     private lateinit var btnGallery: Button
     private lateinit var brightnessSlider: Slider
+    private lateinit var contrastSlider: Slider
     private lateinit var btnSave: Button
 
     private lateinit var originalBitmap: Bitmap
@@ -58,7 +59,11 @@ class MainActivity : AppCompatActivity() {
         }
 
         brightnessSlider.addOnChangeListener(OnChangeListener { slider, value, fromUser ->
-            applyBrightnessFilter(value.toInt())
+            applyCombinedFilters(value.toInt(), contrastSlider.value.toInt())
+        })
+
+        contrastSlider.addOnChangeListener(OnChangeListener { slider, value, fromUser ->
+            applyCombinedFilters(brightnessSlider.value.toInt(), value.toInt())
         })
 
         // do not change this line
@@ -70,48 +75,91 @@ class MainActivity : AppCompatActivity() {
         btnGallery = findViewById(R.id.btnGallery)
         btnSave = findViewById(R.id.btnSave)
         brightnessSlider = findViewById(R.id.slBrightness)
+        contrastSlider = findViewById(R.id.slContrast)
     }
 
-    private fun applyBrightnessFilter(brightness: Int) {
-//      ------- optimized version ----------
-//        if (!::originalBitmap.isInitialized) return
-//
-//        filteredBitmap = originalBitmap.copy(Bitmap.Config.ARGB_8888, true)
-//
-//        val canvas = Canvas(filteredBitmap)
-//        val paint = Paint()
-//
-//        val colorMatrix = ColorMatrix()
-//        colorMatrix.set(
-//            floatArrayOf(
-//                1f, 0f, 0f, 0f, brightness.toFloat(),
-//                0f, 1f, 0f, 0f, brightness.toFloat(),
-//                0f, 0f, 1f, 0f, brightness.toFloat(),
-//                0f, 0f, 0f, 1f, 0f
-//            )
-//        )
-//
-//        paint.colorFilter = ColorMatrixColorFilter(colorMatrix)
-//        canvas.drawBitmap(originalBitmap, 0f, 0f, paint)
-//
-//        currentImage.setImageBitmap(filteredBitmap)
+    private fun calculateAverageBrightness(bitmap: Bitmap): Int {
+        var totalBrightness = 0L
+        val width = bitmap.width
+        val height = bitmap.height
+        val totalPixels = width * height * 3
 
+        for (x in 0 until width) {
+            for (y in 0 until height) {
+                val pixel = bitmap.getPixel(x, y)
+                val red = Color.red(pixel)
+                val green = Color.green(pixel)
+                val blue = Color.blue(pixel)
 
-        if (!::originalBitmap.isInitialized) return
-
-        filteredBitmap = originalBitmap.copy(Bitmap.Config.ARGB_8888, true)
-
-        for (x in 0 until filteredBitmap.width) {
-            for (y in 0 until filteredBitmap.height) {
-                val pixel = originalBitmap.getPixel(x, y)
-                val alpha = Color.alpha(pixel)
-                val red = (Color.red(pixel) + brightness).coerceIn(0, 255)
-                val green = (Color.green(pixel) + brightness).coerceIn(0, 255)
-                val blue = (Color.blue(pixel) + brightness).coerceIn(0, 255)
-                val newPixel = Color.argb(alpha, red, green, blue)
-                filteredBitmap.setPixel(x, y, newPixel)
+                val brightness = red + green + blue
+                totalBrightness += brightness
             }
         }
+
+        return (totalBrightness / totalPixels).toInt()
+    }
+
+    private fun applyCombinedFilters(brightness: Int, contrast: Int) {
+        if (!::originalBitmap.isInitialized) return
+
+        // Step 0: Create a mutable copy for filtering
+        filteredBitmap = originalBitmap.copy(Bitmap.Config.ARGB_8888, true)
+
+        val width = filteredBitmap.width
+        val height = filteredBitmap.height
+        val pixels = IntArray(width * height)
+
+        // Step 1: Retrieve the pixels from the 'filteredBitmap' copy
+        // so we can modify them in-memory
+        filteredBitmap.getPixels(pixels, 0, width, 0, 0, width, height)
+
+        // -------------------------
+        // STEP 1: BRIGHTNESS FILTER
+        // -------------------------
+        for (i in pixels.indices) {
+            val pixel = pixels[i]
+            val alpha = Color.alpha(pixel)
+
+            val red = (Color.red(pixel) + brightness).coerceIn(0, 255)
+            val green = (Color.green(pixel) + brightness).coerceIn(0, 255)
+            val blue = (Color.blue(pixel) + brightness).coerceIn(0, 255)
+
+            pixels[i] = Color.argb(alpha, red, green, blue)
+        }
+
+        // Update filteredBitmap with brightness-adjusted pixels
+        filteredBitmap.setPixels(pixels, 0, width, 0, 0, width, height)
+
+        // -----------------------------------
+        // STEP 2: RE-CALCULATE AVERAGE BRIGHTNESS
+        //       (FROM THE BRIGHTNESS-ADJUSTED IMAGE)
+        // -----------------------------------
+        val avgBrightness = calculateAverageBrightness(filteredBitmap)
+
+        // Calculate contrast factor
+        val contrastFactor = (255.0 + contrast) / (255.0 - contrast)
+
+        // ------------------------
+        // STEP 3: CONTRAST FILTER
+        // ------------------------
+        // Retrieve the already brightness-adjusted pixels again
+        filteredBitmap.getPixels(pixels, 0, width, 0, 0, width, height)
+        for (i in pixels.indices) {
+            val pixel = pixels[i]
+            val alpha = Color.alpha(pixel)
+
+            val red = ((contrastFactor * (Color.red(pixel) - avgBrightness)) + avgBrightness)
+                .toInt().coerceIn(0, 255)
+            val green = ((contrastFactor * (Color.green(pixel) - avgBrightness)) + avgBrightness)
+                .toInt().coerceIn(0, 255)
+            val blue = ((contrastFactor * (Color.blue(pixel) - avgBrightness)) + avgBrightness)
+                .toInt().coerceIn(0, 255)
+
+            pixels[i] = Color.argb(alpha, red, green, blue)
+        }
+
+        // Step 4: Update the bitmap with the final (brightness + contrast) result
+        filteredBitmap.setPixels(pixels, 0, width, 0, 0, width, height)
         currentImage.setImageBitmap(filteredBitmap)
     }
 
@@ -218,7 +266,7 @@ class MainActivity : AppCompatActivity() {
         if (requestCode == 0) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R ||
                 (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED)
-                ) {
+            ) {
                 saveToGallery()
             } else {
                 Toast.makeText(this, "Permission Denied!", Toast.LENGTH_SHORT).show()

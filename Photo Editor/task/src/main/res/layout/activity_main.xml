@@ -23,11 +23,22 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="24dp"
         android:text="GALLERY"
-        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toStartOf="@id/btnSave"
+        app:layout_constraintTop_toBottomOf="@+id/ivPhoto" />
+
+    <Button
+        android:id="@+id/btnSave"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:text="SAVE"
+        app:layout_constraintStart_toEndOf="@+id/btnGallery"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/ivPhoto" />
 
     <LinearLayout
+        android:id="@+id/linearLayout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center"
@@ -47,11 +58,10 @@
             android:id="@+id/slBrightness"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:valueFrom="-250"
-            android:valueTo="250"
             android:stepSize="10"
             android:value="0"
-            />
+            android:valueFrom="-250"
+            android:valueTo="250" />
     </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

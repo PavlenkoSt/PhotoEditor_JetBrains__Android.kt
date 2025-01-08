@@ -20,6 +20,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.google.android.material.slider.Slider
 import com.google.android.material.slider.Slider.OnChangeListener
+import kotlin.math.pow
 
 class MainActivity : AppCompatActivity() {
 
@@ -27,6 +28,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnGallery: Button
     private lateinit var brightnessSlider: Slider
     private lateinit var contrastSlider: Slider
+    private lateinit var saturationSlider: Slider
+    private lateinit var gammaSlider: Slider
     private lateinit var btnSave: Button
 
     private lateinit var originalBitmap: Bitmap
@@ -59,12 +62,40 @@ class MainActivity : AppCompatActivity() {
         }
 
         brightnessSlider.addOnChangeListener(OnChangeListener { slider, value, fromUser ->
-            applyCombinedFilters(value.toInt(), contrastSlider.value.toInt())
+            applyCombinedFilters(
+                value.toInt(),
+                contrastSlider.value.toInt(),
+                saturationSlider.value.toInt(),
+                gammaSlider.value.toDouble()
+            )
         })
 
         contrastSlider.addOnChangeListener(OnChangeListener { slider, value, fromUser ->
-            applyCombinedFilters(brightnessSlider.value.toInt(), value.toInt())
+            applyCombinedFilters(
+                brightnessSlider.value.toInt(),
+                value.toInt(),
+                saturationSlider.value.toInt(),
+                gammaSlider.value.toDouble()
+            )
         })
+
+        saturationSlider.addOnChangeListener(OnChangeListener({ slider, value, fromUser ->
+            applyCombinedFilters(
+                brightnessSlider.value.toInt(),
+                contrastSlider.value.toInt(),
+                value.toInt(),
+                gammaSlider.value.toDouble()
+            )
+        }))
+
+        gammaSlider.addOnChangeListener(OnChangeListener({ slider, value, fromUser ->
+            applyCombinedFilters(
+                brightnessSlider.value.toInt(),
+                contrastSlider.value.toInt(),
+                saturationSlider.value.toInt(),
+                value.toDouble(),
+            )
+        }))
 
         // do not change this line
         currentImage.setImageBitmap(createBitmap())
@@ -76,6 +107,8 @@ class MainActivity : AppCompatActivity() {
         btnSave = findViewById(R.id.btnSave)
         brightnessSlider = findViewById(R.id.slBrightness)
         contrastSlider = findViewById(R.id.slContrast)
+        saturationSlider = findViewById(R.id.slSaturation)
+        gammaSlider = findViewById(R.id.slGamma)
     }
 
     private fun calculateAverageBrightness(bitmap: Bitmap): Int {
@@ -119,7 +152,7 @@ class MainActivity : AppCompatActivity() {
         filteredBitmap.setPixels(pixels, 0, width, 0, 0, width, height)
     }
 
-    private fun applyContrastFilter( contrast: Int, pixels: IntArray, filteredBitmap: Bitmap) {
+    private fun applyContrastFilter(contrast: Int, pixels: IntArray, filteredBitmap: Bitmap) {
         val width = filteredBitmap.width
         val height = filteredBitmap.height
 
@@ -145,7 +178,66 @@ class MainActivity : AppCompatActivity() {
         filteredBitmap.setPixels(pixels, 0, width, 0, 0, width, height)
     }
 
-    private fun applyCombinedFilters(brightness: Int, contrast: Int) {
+    private fun applySaturationFilter(saturation: Int, pixels: IntArray, filteredBitmap: Bitmap) {
+        val width = filteredBitmap.width
+        val height = filteredBitmap.height
+
+        filteredBitmap.getPixels(pixels, 0, width, 0, 0, width, height)
+
+        for (i in pixels.indices) {
+            val pixel = pixels[i]
+            val alpha = Color.alpha(pixel)
+
+            val redSrc = Color.red(pixel)
+            val greenSrc = Color.green(pixel)
+            val blueSrc = Color.blue(pixel)
+
+            val rgbAvg = (redSrc + greenSrc + blueSrc) / 3
+            val saturationAlpha: Double =
+                (255.0 + saturation.toDouble()) / (255.0 - saturation.toDouble())
+
+            val red = ((saturationAlpha * (Color.red(pixel) - rgbAvg)) + rgbAvg)
+                .toInt().coerceIn(0, 255)
+            val green = ((saturationAlpha * (Color.green(pixel) - rgbAvg)) + rgbAvg)
+                .toInt().coerceIn(0, 255)
+            val blue = ((saturationAlpha * (Color.blue(pixel) - rgbAvg)) + rgbAvg)
+                .toInt().coerceIn(0, 255)
+
+            pixels[i] = Color.argb(alpha, red, green, blue)
+        }
+
+        filteredBitmap.setPixels(pixels, 0, width, 0, 0, width, height)
+    }
+
+    private fun applyGammaFilter(gamma: Double, pixels: IntArray, filteredBitmap: Bitmap) {
+        val width = filteredBitmap.width
+        val height = filteredBitmap.height
+
+        filteredBitmap.getPixels(pixels, 0, width, 0, 0, width, height)
+
+        for (i in pixels.indices) {
+            val pixel = pixels[i]
+            val alpha = Color.alpha(pixel)
+
+            val red =
+                (255 * (Color.red(pixel).toDouble() / 255).pow(gamma)).toInt().coerceIn(0, 255)
+            val green =
+                (255 * (Color.green(pixel).toDouble() / 255).pow(gamma)).toInt().coerceIn(0, 255)
+            val blue =
+                (255 * (Color.blue(pixel).toDouble() / 255).pow(gamma)).toInt().coerceIn(0, 255)
+
+            pixels[i] = Color.argb(alpha, red, green, blue)
+        }
+
+        filteredBitmap.setPixels(pixels, 0, width, 0, 0, width, height)
+    }
+
+    private fun applyCombinedFilters(
+        brightness: Int,
+        contrast: Int,
+        saturation: Int,
+        gamma: Double
+    ) {
         if (!::originalBitmap.isInitialized) return
 
         filteredBitmap = originalBitmap.copy(Bitmap.Config.ARGB_8888, true)
@@ -156,6 +248,8 @@ class MainActivity : AppCompatActivity() {
 
         applyBrightnessFilter(brightness, pixels, filteredBitmap)
         applyContrastFilter(contrast, pixels, filteredBitmap)
+        applySaturationFilter(saturation, pixels, filteredBitmap)
+        applyGammaFilter(gamma, pixels, filteredBitmap)
 
         filteredBitmap.setPixels(pixels, 0, width, 0, 0, width, height)
         currentImage.setImageBitmap(filteredBitmap)

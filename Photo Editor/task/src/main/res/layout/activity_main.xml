@@ -92,4 +92,58 @@
             android:valueTo="250" />
     </LinearLayout>
 
+    <LinearLayout
+        android:id="@+id/linearLayout3"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:orientation="horizontal"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/linearLayout2">
+
+        <TextView
+            android:id="@+id/tvSaturation"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:text="Saturation" />
+
+        <com.google.android.material.slider.Slider
+            android:id="@+id/slSaturation"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:stepSize="10"
+            android:value="0"
+            android:valueFrom="-250"
+            android:valueTo="250" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/linearLayout4"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:orientation="horizontal"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/linearLayout3">
+
+        <TextView
+            android:id="@+id/tvGamma"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:text="Gamma" />
+
+        <com.google.android.material.slider.Slider
+            android:id="@+id/slGamma"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:stepSize="0.2"
+            android:value="1"
+            android:valueFrom="0.2"
+            android:valueTo="4.0" />
+    </LinearLayout>
+
 </androidx.constraintlayout.widget.ConstraintLayout>

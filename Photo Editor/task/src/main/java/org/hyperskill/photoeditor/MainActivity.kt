@@ -99,23 +99,12 @@ class MainActivity : AppCompatActivity() {
         return (totalBrightness / totalPixels).toInt()
     }
 
-    private fun applyCombinedFilters(brightness: Int, contrast: Int) {
-        if (!::originalBitmap.isInitialized) return
-
-        // Step 0: Create a mutable copy for filtering
-        filteredBitmap = originalBitmap.copy(Bitmap.Config.ARGB_8888, true)
-
+    private fun applyBrightnessFilter(brightness: Int, pixels: IntArray, filteredBitmap: Bitmap) {
         val width = filteredBitmap.width
         val height = filteredBitmap.height
-        val pixels = IntArray(width * height)
 
-        // Step 1: Retrieve the pixels from the 'filteredBitmap' copy
-        // so we can modify them in-memory
         filteredBitmap.getPixels(pixels, 0, width, 0, 0, width, height)
 
-        // -------------------------
-        // STEP 1: BRIGHTNESS FILTER
-        // -------------------------
         for (i in pixels.indices) {
             val pixel = pixels[i]
             val alpha = Color.alpha(pixel)
@@ -127,23 +116,18 @@ class MainActivity : AppCompatActivity() {
             pixels[i] = Color.argb(alpha, red, green, blue)
         }
 
-        // Update filteredBitmap with brightness-adjusted pixels
         filteredBitmap.setPixels(pixels, 0, width, 0, 0, width, height)
+    }
 
-        // -----------------------------------
-        // STEP 2: RE-CALCULATE AVERAGE BRIGHTNESS
-        //       (FROM THE BRIGHTNESS-ADJUSTED IMAGE)
-        // -----------------------------------
+    private fun applyContrastFilter( contrast: Int, pixels: IntArray, filteredBitmap: Bitmap) {
+        val width = filteredBitmap.width
+        val height = filteredBitmap.height
+
+        filteredBitmap.getPixels(pixels, 0, width, 0, 0, width, height)
+
+        val contrastFactor = (255.0 + contrast) / (255.0 - contrast)
         val avgBrightness = calculateAverageBrightness(filteredBitmap)
 
-        // Calculate contrast factor
-        val contrastFactor = (255.0 + contrast) / (255.0 - contrast)
-
-        // ------------------------
-        // STEP 3: CONTRAST FILTER
-        // ------------------------
-        // Retrieve the already brightness-adjusted pixels again
-        filteredBitmap.getPixels(pixels, 0, width, 0, 0, width, height)
         for (i in pixels.indices) {
             val pixel = pixels[i]
             val alpha = Color.alpha(pixel)
@@ -158,7 +142,21 @@ class MainActivity : AppCompatActivity() {
             pixels[i] = Color.argb(alpha, red, green, blue)
         }
 
-        // Step 4: Update the bitmap with the final (brightness + contrast) result
+        filteredBitmap.setPixels(pixels, 0, width, 0, 0, width, height)
+    }
+
+    private fun applyCombinedFilters(brightness: Int, contrast: Int) {
+        if (!::originalBitmap.isInitialized) return
+
+        filteredBitmap = originalBitmap.copy(Bitmap.Config.ARGB_8888, true)
+
+        val width = filteredBitmap.width
+        val height = filteredBitmap.height
+        val pixels = IntArray(width * height)
+
+        applyBrightnessFilter(brightness, pixels, filteredBitmap)
+        applyContrastFilter(contrast, pixels, filteredBitmap)
+
         filteredBitmap.setPixels(pixels, 0, width, 0, 0, width, height)
         currentImage.setImageBitmap(filteredBitmap)
     }

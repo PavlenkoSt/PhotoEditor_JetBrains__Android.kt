@@ -20,9 +20,16 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.google.android.material.slider.Slider
 import com.google.android.material.slider.Slider.OnChangeListener
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.pow
 
 class MainActivity : AppCompatActivity() {
+    private var lastJob: Job? = null
 
     private lateinit var currentImage: ImageView
     private lateinit var btnGallery: Button
@@ -111,127 +118,6 @@ class MainActivity : AppCompatActivity() {
         gammaSlider = findViewById(R.id.slGamma)
     }
 
-    private fun calculateAverageBrightness(bitmap: Bitmap): Int {
-        var totalBrightness = 0L
-        val width = bitmap.width
-        val height = bitmap.height
-        val totalPixels = width * height * 3
-
-        for (x in 0 until width) {
-            for (y in 0 until height) {
-                val pixel = bitmap.getPixel(x, y)
-                val red = Color.red(pixel)
-                val green = Color.green(pixel)
-                val blue = Color.blue(pixel)
-
-                val brightness = red + green + blue
-                totalBrightness += brightness
-            }
-        }
-
-        return (totalBrightness / totalPixels).toInt()
-    }
-
-    private fun applyBrightnessFilter(brightness: Int, pixels: IntArray, filteredBitmap: Bitmap) {
-        val width = filteredBitmap.width
-        val height = filteredBitmap.height
-
-        filteredBitmap.getPixels(pixels, 0, width, 0, 0, width, height)
-
-        for (i in pixels.indices) {
-            val pixel = pixels[i]
-            val alpha = Color.alpha(pixel)
-
-            val red = (Color.red(pixel) + brightness).coerceIn(0, 255)
-            val green = (Color.green(pixel) + brightness).coerceIn(0, 255)
-            val blue = (Color.blue(pixel) + brightness).coerceIn(0, 255)
-
-            pixels[i] = Color.argb(alpha, red, green, blue)
-        }
-
-        filteredBitmap.setPixels(pixels, 0, width, 0, 0, width, height)
-    }
-
-    private fun applyContrastFilter(contrast: Int, pixels: IntArray, filteredBitmap: Bitmap) {
-        val width = filteredBitmap.width
-        val height = filteredBitmap.height
-
-        filteredBitmap.getPixels(pixels, 0, width, 0, 0, width, height)
-
-        val contrastFactor = (255.0 + contrast) / (255.0 - contrast)
-        val avgBrightness = calculateAverageBrightness(filteredBitmap)
-
-        for (i in pixels.indices) {
-            val pixel = pixels[i]
-            val alpha = Color.alpha(pixel)
-
-            val red = ((contrastFactor * (Color.red(pixel) - avgBrightness)) + avgBrightness)
-                .toInt().coerceIn(0, 255)
-            val green = ((contrastFactor * (Color.green(pixel) - avgBrightness)) + avgBrightness)
-                .toInt().coerceIn(0, 255)
-            val blue = ((contrastFactor * (Color.blue(pixel) - avgBrightness)) + avgBrightness)
-                .toInt().coerceIn(0, 255)
-
-            pixels[i] = Color.argb(alpha, red, green, blue)
-        }
-
-        filteredBitmap.setPixels(pixels, 0, width, 0, 0, width, height)
-    }
-
-    private fun applySaturationFilter(saturation: Int, pixels: IntArray, filteredBitmap: Bitmap) {
-        val width = filteredBitmap.width
-        val height = filteredBitmap.height
-
-        filteredBitmap.getPixels(pixels, 0, width, 0, 0, width, height)
-
-        for (i in pixels.indices) {
-            val pixel = pixels[i]
-            val alpha = Color.alpha(pixel)
-
-            val redSrc = Color.red(pixel)
-            val greenSrc = Color.green(pixel)
-            val blueSrc = Color.blue(pixel)
-
-            val rgbAvg = (redSrc + greenSrc + blueSrc) / 3
-            val saturationAlpha: Double =
-                (255.0 + saturation.toDouble()) / (255.0 - saturation.toDouble())
-
-            val red = ((saturationAlpha * (Color.red(pixel) - rgbAvg)) + rgbAvg)
-                .toInt().coerceIn(0, 255)
-            val green = ((saturationAlpha * (Color.green(pixel) - rgbAvg)) + rgbAvg)
-                .toInt().coerceIn(0, 255)
-            val blue = ((saturationAlpha * (Color.blue(pixel) - rgbAvg)) + rgbAvg)
-                .toInt().coerceIn(0, 255)
-
-            pixels[i] = Color.argb(alpha, red, green, blue)
-        }
-
-        filteredBitmap.setPixels(pixels, 0, width, 0, 0, width, height)
-    }
-
-    private fun applyGammaFilter(gamma: Double, pixels: IntArray, filteredBitmap: Bitmap) {
-        val width = filteredBitmap.width
-        val height = filteredBitmap.height
-
-        filteredBitmap.getPixels(pixels, 0, width, 0, 0, width, height)
-
-        for (i in pixels.indices) {
-            val pixel = pixels[i]
-            val alpha = Color.alpha(pixel)
-
-            val red =
-                (255 * (Color.red(pixel).toDouble() / 255).pow(gamma)).toInt().coerceIn(0, 255)
-            val green =
-                (255 * (Color.green(pixel).toDouble() / 255).pow(gamma)).toInt().coerceIn(0, 255)
-            val blue =
-                (255 * (Color.blue(pixel).toDouble() / 255).pow(gamma)).toInt().coerceIn(0, 255)
-
-            pixels[i] = Color.argb(alpha, red, green, blue)
-        }
-
-        filteredBitmap.setPixels(pixels, 0, width, 0, 0, width, height)
-    }
-
     private fun applyCombinedFilters(
         brightness: Int,
         contrast: Int,
@@ -240,22 +126,81 @@ class MainActivity : AppCompatActivity() {
     ) {
         if (!::originalBitmap.isInitialized) return
 
-        filteredBitmap = originalBitmap.copy(Bitmap.Config.ARGB_8888, true)
+        lastJob?.cancel()
 
-        val width = filteredBitmap.width
-        val height = filteredBitmap.height
-        val pixels = IntArray(width * height)
+        lastJob = CoroutineScope(Dispatchers.IO).launch {
+            // Work on a local copy so we don’t corrupt the global filteredBitmap
+            val localCopy = originalBitmap.copy(Bitmap.Config.ARGB_8888, true)
 
-        applyBrightnessFilter(brightness, pixels, filteredBitmap)
-        applyContrastFilter(contrast, pixels, filteredBitmap)
-        applySaturationFilter(saturation, pixels, filteredBitmap)
-        applyGammaFilter(gamma, pixels, filteredBitmap)
+            val width = localCopy.width
+            val height = localCopy.height
+            val pixels = IntArray(width * height)
 
-        filteredBitmap.setPixels(pixels, 0, width, 0, 0, width, height)
-        currentImage.setImageBitmap(filteredBitmap)
+            // ---------- PASS 1: Brightness + average brightness -----------
+            localCopy.getPixels(pixels, 0, width, 0, 0, width, height)
+            var totalBrightness = 0L
+            for (i in pixels.indices) {
+                if (!isActive) return@launch // Stop if canceled
+                val pixel = pixels[i]
+                val alpha = Color.alpha(pixel)
+                val r = (Color.red(pixel) + brightness).coerceIn(0, 255)
+                val g = (Color.green(pixel) + brightness).coerceIn(0, 255)
+                val b = (Color.blue(pixel) + brightness).coerceIn(0, 255)
+                totalBrightness += (r + g + b)
+                pixels[i] = Color.argb(alpha, r, g, b)
+            }
+            localCopy.setPixels(pixels, 0, width, 0, 0, width, height)
+            val totalPixels = width * height * 3
+            val avgBrightness = (totalBrightness / totalPixels).toInt()
+
+            // ---------- PASS 2: Contrast, Saturation, Gamma -----------
+            localCopy.getPixels(pixels, 0, width, 0, 0, width, height)
+
+            val contrastFactor = (255.0 + contrast) / (255.0 - contrast)
+            val saturationAlpha = (255.0 + saturation) / (255.0 - saturation)
+
+            for (i in pixels.indices) {
+                if (!isActive) return@launch // Stop if canceled
+                val pixel = pixels[i]
+                val alpha = Color.alpha(pixel)
+
+                var r = Color.red(pixel)
+                var g = Color.green(pixel)
+                var b = Color.blue(pixel)
+
+                // -- Contrast --
+                r = ((contrastFactor * (r - avgBrightness)) + avgBrightness)
+                    .toInt().coerceIn(0, 255)
+                g = ((contrastFactor * (g - avgBrightness)) + avgBrightness)
+                    .toInt().coerceIn(0, 255)
+                b = ((contrastFactor * (b - avgBrightness)) + avgBrightness)
+                    .toInt().coerceIn(0, 255)
+
+                // -- Saturation --
+                val rgbAvg = (r + g + b) / 3
+                r = ((saturationAlpha * (r - rgbAvg)) + rgbAvg).toInt().coerceIn(0, 255)
+                g = ((saturationAlpha * (g - rgbAvg)) + rgbAvg).toInt().coerceIn(0, 255)
+                b = ((saturationAlpha * (b - rgbAvg)) + rgbAvg).toInt().coerceIn(0, 255)
+
+                // -- Gamma --
+                r = (255.0 * (r / 255.0).pow(gamma)).toInt().coerceIn(0, 255)
+                g = (255.0 * (g / 255.0).pow(gamma)).toInt().coerceIn(0, 255)
+                b = (255.0 * (b / 255.0).pow(gamma)).toInt().coerceIn(0, 255)
+
+                pixels[i] = Color.argb(alpha, r, g, b)
+            }
+
+            localCopy.setPixels(pixels, 0, width, 0, 0, width, height)
+
+            if (isActive) {
+                withContext(Dispatchers.Main) {
+                    filteredBitmap = localCopy
+                    currentImage.setImageBitmap(filteredBitmap)
+                }
+            }
+        }
     }
 
-    // do not change this function
     fun createBitmap(): Bitmap {
         val width = 200
         val height = 100
